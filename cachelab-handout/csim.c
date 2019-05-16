@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <getopt.h>
 #include <stdbool.h>
-
+#include <string.h>
 typedef struct{
     unsigned int sig;
     unsigned int valid;
@@ -20,8 +20,8 @@ typedef struct{
 }Cache;
 typedef struct{
     char type;
-    unsigned long int address;
-    unsigned long int setindex;
+    unsigned int address;
+    unsigned int setindex;
     unsigned long int sig;
     unsigned int memsize;
 }Operation;
@@ -43,25 +43,50 @@ void updatecacheline(Operation op,Cacheline *cl){
     cl->valid = 1;
     updateaccessime(cl);
 }
-void lru(Operation op,Cache *cache,hitrestult *hr){
-    unsigned int least = 0;
-    Cacheline * lruCacheline;
-    for(int  i=0;i<(cache -> nSet);i++){
-        for(int j=0;j<(cache->nCacheline);j++){
-            if(cache->set[i].cl[j].accesstime<=least){
-                lruCacheline = &(cache->set[i].cl[j]);
-                least = cache->set[i].cl[j].accesstime;
-            }
-        }
+// void lru(Operation op,Cache *cache,hitrestult *hr){
+//     unsigned int least = 0;
+//     Cacheline * lruCacheline;
+//     for(int  i=0;i<(cache -> nSet);i++){
+//         for(int j=0;j<(cache->nCacheline);j++){
+//             if(cache->set[i].cl[j].accesstime < least){
+//                 lruCacheline = &(cache->set[i].cl[j]);
+//                 least = cache->set[i].cl[j].accesstime;
+//             }
+//         }
 
+//     }
+//     if(least > 0){
+//         hr->eviction = true;
+//         eviction++;
+//     }
+        
+//     updatecacheline(op,lruCacheline);
+// }
+void lru(Operation op,Cache *cache,unsigned long int setindex,hitrestult *hr){
+    unsigned long int least =cache->set[setindex].cl[0].accesstime;
+    Cacheline * lruCacheline;
+    bool hasEmptyline = false;
+    for(int i=0;i<(cache->nCacheline);i++){
+        //查看是否有空行，若有立即替换，若无，再记录是否覆盖
+        if(cache->set[setindex].cl[i].valid == 0){
+            hasEmptyline = true;
+            lruCacheline = &(cache->set[setindex].cl[i]);
+            break;
+        }
+        if(cache->set[setindex].cl[i].accesstime <= least){
+            lruCacheline = &(cache->set[setindex].cl[i]);
+            least = cache->set[setindex].cl[i].accesstime;
+        }
     }
-    if(least == 0){
+    if(!hasEmptyline){
         hr->eviction = true;
         eviction++;
     }
         
     updatecacheline(op,lruCacheline);
 }
+
+
 void initcache(int s,int E,int b,Cache * cache){
     cache->nSet = 1L <<s;
     cache->nCacheline = E;
@@ -85,18 +110,19 @@ void caching(Operation op, Cache *cache, hitrestult *hr){
         if(cache -> set[op.setindex].cl[i].sig == op.sig){
             if(cache -> set[op.setindex].cl[i].valid){
                 hr->hit = true;
-                updateaccessime(&(cache -> set[op.setindex].cl[i]));
+                updatecacheline(op,&(cache -> set[op.setindex].cl[i]));
                 hit++;
             }
                 
         }
     }
     if(!(hr->hit)){
+        //首先查看该组内是否有空的缓存行（有效值==0），若有直接放入，若无采用lru。
         //LRU 替换最新的 并且若发生了替换需要将eviction置为真。
-        //首先找到最晚被使用的 cacheline 替换掉！ 
-        //find least accesitme cache line , replace it ,and  update time!
+        //首先找到最早被使用的 cacheline 替换掉！ 
         miss ++;
-        lru(op,cache,hr);
+        
+        lru(op,cache,op.setindex,hr);
         
     }
     return ;
@@ -113,6 +139,7 @@ int main(int argc,char **argv)
     char opchar[100];
     char *ptropchar;
     hitrestult hr;
+    unsigned long int opaddressbak;
     while((optg = getopt(argc,argv,"hvs:E:b:t:"))!=-1){
         switch (optg)
         {
@@ -149,13 +176,15 @@ int main(int argc,char **argv)
     tracefile = fopen(filepath,"r");
     while(fgets(opchar,100,tracefile)!=NULL){
         ptropchar = opchar;
+        ptropchar[strlen(opchar)-1] = 0;
         if(*ptropchar++ == 'I')
             continue;
         hr.hit = false;
         hr.eviction = false;
-        sscanf(ptropchar,"%c %lu %u",&op.type,&op.address,&op.memsize);
+        sscanf(ptropchar,"%s %x %d",&op.type,&op.address,&op.memsize);
+        opaddressbak = op.address;
         op.setindex = (op.address >> b) &((1L << s) -1);
-        op.sig = (op.address >> (b+s));
+        op.sig = (opaddressbak >> (b+s));
         caching(op, &simCache, &hr);
         if(verbose){
             printf("%s %s",ptropchar,hr.hit? "hit":"miss");
