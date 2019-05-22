@@ -9,7 +9,7 @@
 - thread - 并发编程
 ## LAB
 
-- [ ] cache lab
+- [x] cache lab
 - [ ] performance lab
 - [ ] shell lab 
 - [ ] malloc lab
