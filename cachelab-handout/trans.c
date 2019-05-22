@@ -22,6 +22,110 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N]);
 char transpose_submit_desc[] = "Transpose submission";
 void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 {
+    //32^2 is the cachesize of (s,E,b) = (5,1,5)
+    //we need 8 local varibles to split loading of the two block matrix.
+    int i,j,ii,jj;
+    int a1,a2,a3,a4,a5,a6,a7,a8;
+    if(M == 32){
+        for(i=0;i<N;i+=8){
+            for(j=0;j<M;j+=8){
+                for(ii=i;ii<i+8;ii++){
+                    
+                    a1 = A[ii][j];
+                    a2 = A[ii][j+1];
+                    a3 = A[ii][j+2];
+                    a4 = A[ii][j+3];
+                    a5 = A[ii][j+4];
+                    a6 = A[ii][j+5];
+                    a7 = A[ii][j+6];
+                    a8 = A[ii][j+7];
+                    B[j][ii] = a1;
+                    B[j+1][ii] = a2;
+                    B[j+2][ii] = a3;
+                    B[j+3][ii] = a4;
+                    B[j+4][ii] = a5;
+                    B[j+5][ii] = a6;
+                    B[j+6][ii] = a7;
+                    B[j+7][ii] = a8;
+                }
+            }
+        }
+    }else if(M == 64)
+    {
+        /* code */
+        for(i = 0;i<N;i+=8){
+            for(j =0;j<M;j+=8){
+                for(ii = i;ii<i+4;ii++){
+                    a1 = A[ii][j];
+                    a2 = A[ii][j+1];
+                    a3 = A[ii][j+2];
+                    a4 = A[ii][j+3];
+
+                    a5 = A[ii][j+4];
+                    a6 = A[ii][j+5];
+                    a7 = A[ii][j+6];
+                    a8 = A[ii][j+7];
+
+                    B[j][ii] = a1;
+                    B[j+1][ii] = a2;
+                    B[j+2][ii] = a3;
+                    B[j+3][ii] = a4;
+                    
+                    B[j][ii+4] = a5;
+                    B[j+1][ii+4] = a6;
+                    B[j+2][ii+4] = a7;
+                    B[j+3][ii+4] = a8;
+                }
+                for(jj = j;jj<j+4;jj++){
+                    a1 = B[jj][i+4];
+                    a2 = B[jj][i+5];
+                    a3 = B[jj][i+6];
+                    a4 = B[jj][i+7];
+                    
+                    a5 = A[i+4][jj];
+                    a6 = A[i+5][jj];
+                    a7 = A[i+6][jj];
+                    a8 = A[i+7][jj];
+
+                    B[jj][i+4] = a5;
+                    B[jj][i+5] = a6;
+                    B[jj][i+6] = a7;
+                    B[jj][i+7] = a8;
+
+                    B[jj+4][i] = a1;
+                    B[jj+4][i+1] = a2;
+                    B[jj+4][i+2] = a3;
+                    B[jj+4][i+3] = a4;
+                }
+                for(;jj<j+8;jj++){
+                    a1 = A[i+4][jj];
+                    a2 = A[i+5][jj];
+                    a3 = A[i+6][jj];
+                    a4 = A[i+7][jj];
+
+                    B[jj][i+4] = a1;
+                    B[jj][i+5] = a2;
+                    B[jj][i+6] = a3;
+                    B[jj][i+7] = a4;
+                }
+            }
+        }
+    }else
+    {
+        /* code */
+         for(i =0;i<N;i+=16){
+            for(j = 0; j< M;j+=16){
+                for(ii = i;ii< i+16 && ii<N;ii++){
+                   for(jj = j;jj<j+16 && jj<M;jj++)
+                   {
+                        a1 = A[ii][jj];
+                        B[jj][ii] = a1;
+                   }
+                       
+                }
+            }
+        }
+    }
 }
 
 /* 
